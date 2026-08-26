@@ -2,8 +2,13 @@
 
 *Turns your music down when your microphone goes live, and back up when it doesn't.*
 
-You start talking on a call and your music is still playing into it. macOS has no
-setting for this — it lowers audio for phone calls and Siri, and leaves every
+You start dictating to your agents and the music keeps playing. Some of it gets
+into the microphone — cardioid or dynamic, it still spills, and leaning on noise
+suppression to scrub it back out is a poor trade. The rest is just distracting to
+talk over. Reaching for the volume key solves it once; it doesn't solve it forty
+times an hour.
+
+macOS won't do it for you. It ducks for phone calls and Siri, and leaves every
 other app to fend for itself.
 
 Ducker is a menu-bar utility that watches the default microphone's actual running
@@ -54,8 +59,8 @@ The first line of the menu is a status line. It's worth knowing what it says:
 
 ### Bypass
 
-Ducking exists so the room's microphone doesn't pick up the room's speakers. On
-headphones that can't happen, so Ducker stays out of the way. It bypasses an
+The main reason to duck is to keep the room's speakers out of the room's
+microphone. On headphones that can't happen, so Ducker stays out of the way. It bypasses an
 output when the device reports a headphone terminal, when it's a Bluetooth device
 that also exposes a microphone, or when its name matches a known headset — AirPods
 and Sony WH-1000XM/WF-1000XM models.
