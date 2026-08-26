@@ -45,7 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(
             systemSymbolName: "mic.and.signal.meter",
-            accessibilityDescription: "Codex Ducker"
+            accessibilityDescription: "Ducker"
         )
 
         let menu = NSMenu()
@@ -105,7 +105,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(privacyItem)
 
         let quitItem = NSMenuItem(
-            title: "Quit Codex Ducker",
+            title: "Quit Ducker",
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -193,13 +193,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             systemSymbolName: symbol,
             accessibilityDescription: state.menuText
         )
-        statusItem.button?.toolTip = "Codex Ducker — \(state.menuText)"
+        statusItem.button?.toolTip = "Ducker — \(state.menuText)"
     }
 
     private func showIntroduction() {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
-        alert.messageText = "Codex Ducker is ready"
+        alert.messageText = "Ducker is ready"
         alert.informativeText = "It watches the default microphone's actual running state. While you are dictating through speakers, it safely verifies a private Core Audio tap, routes other app audio through it at \(Int(engine.duckGain * 100))% volume, then restores direct playback. Headphone and headset outputs are bypassed. The first test asks macOS for System Audio Recording permission; no audio is saved."
         alert.alertStyle = .informational
         alert.addButton(withTitle: "Enable & Test")

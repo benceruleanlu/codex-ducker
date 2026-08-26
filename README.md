@@ -1,6 +1,6 @@
-# Codex Ducker
+# Ducker
 
-Codex Ducker is a native macOS menu-bar utility that lowers other audio while the default microphone is active. It uses a private Core Audio process tap, so it also works with fixed-volume HDMI and DisplayPort outputs and does not need a virtual-audio driver.
+Ducker is a native macOS menu-bar utility that lowers other audio while the default microphone is active. It uses a private Core Audio process tap, so it also works with fixed-volume HDMI and DisplayPort outputs and does not need a virtual-audio driver.
 
 ## Behavior
 
@@ -11,10 +11,10 @@ Codex Ducker is a native macOS menu-bar utility that lowers other audio while th
 - Rebuilds its private path when the default output device changes.
 - Can keep a user-selected microphone as the system default whenever that
   device is available. If it disconnects, macOS chooses the fallback normally;
-  Codex Ducker restores the preference when it returns.
+  Ducker restores the preference when it returns.
 - Never changes the saved master volume and never records or saves audio.
 - Fails open: the original stream stays unmuted until the tap proves it is receiving nonzero samples; if permission or routing fails, playback is left untouched.
-- Excludes Codex Ducker's own Core Audio process from the global tap so the attenuated replacement stream is played instead of being muted recursively.
+- Excludes Ducker's own Core Audio process from the global tap so the attenuated replacement stream is played instead of being muted recursively.
 
 ## Install
 
@@ -40,7 +40,7 @@ The test suite validates the realtime gain/ramp code and output policy, then bui
 ./scripts/test.sh
 ```
 
-Logs are written to `~/Library/Logs/CodexDucker/CodexDucker.log`.
+Logs are written to `~/Library/Logs/Ducker/Ducker.log`.
 
 ## Remove
 

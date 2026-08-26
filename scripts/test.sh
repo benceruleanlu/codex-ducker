@@ -20,9 +20,9 @@ xcrun clang \
 
 "${build_dir}/DuckerDSPTests"
 "${project_dir}/scripts/build.sh"
-"${project_dir}/build/Codex Ducker.app/Contents/MacOS/CodexDucker" --policy-check
-"${project_dir}/build/Codex Ducker.app/Contents/MacOS/CodexDucker" --pipeline-check
-codesign --verify --deep --strict "${project_dir}/build/Codex Ducker.app"
-plutil -lint "${project_dir}/build/Codex Ducker.app/Contents/Info.plist"
+"${project_dir}/build/Ducker.app/Contents/MacOS/Ducker" --policy-check
+"${project_dir}/build/Ducker.app/Contents/MacOS/Ducker" --pipeline-check
+codesign --verify --deep --strict "${project_dir}/build/Ducker.app"
+plutil -lint "${project_dir}/build/Ducker.app/Contents/Info.plist"
 
 echo "All checks passed"

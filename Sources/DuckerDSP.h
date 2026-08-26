@@ -1,5 +1,5 @@
-#ifndef CODEX_DUCKER_DSP_H
-#define CODEX_DUCKER_DSP_H
+#ifndef DUCKER_DSP_H
+#define DUCKER_DSP_H
 
 #include <CoreAudio/CoreAudio.h>
 #include <stdint.h>

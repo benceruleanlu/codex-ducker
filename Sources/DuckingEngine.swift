@@ -323,7 +323,7 @@ final class DuckingEngine {
         excludedProcessID = try audioProcessObject(for: getpid())
 
         let description = CATapDescription()
-        description.name = "Codex Ducker system-audio tap"
+        description.name = "Ducker system-audio tap"
         description.processes = [excludedProcessID]
         description.isPrivate = true
         description.muteBehavior = .unmuted
@@ -333,7 +333,7 @@ final class DuckingEngine {
         description.deviceUID = outputUID
         description.stream = 0
         if #available(macOS 26.0, *) {
-            description.bundleIDs = [Bundle.main.bundleIdentifier ?? "com.bendodson.CodexDucker"]
+            description.bundleIDs = [Bundle.main.bundleIdentifier ?? "com.benluwu.Ducker"]
             description.isProcessRestoreEnabled = true
         }
 
@@ -349,9 +349,9 @@ final class DuckingEngine {
             selector: kAudioTapPropertyUID
         )
 
-        let aggregateUID = "com.bendodson.CodexDucker.\(UUID().uuidString)"
+        let aggregateUID = "com.benluwu.Ducker.\(UUID().uuidString)"
         let aggregateDescription: [String: Any] = [
-            kAudioAggregateDeviceNameKey: "Codex Ducker Private Audio Path",
+            kAudioAggregateDeviceNameKey: "Ducker Private Audio Path",
             kAudioAggregateDeviceUIDKey: aggregateUID,
             kAudioAggregateDeviceIsPrivateKey: true,
             kAudioAggregateDeviceIsStackedKey: false,
