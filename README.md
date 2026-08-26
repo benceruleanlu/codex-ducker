@@ -1,58 +1,153 @@
 # Ducker
 
-Ducker is a native macOS menu-bar utility that lowers other audio while the default microphone is active. It uses a private Core Audio process tap, so it also works with fixed-volume HDMI and DisplayPort outputs and does not need a virtual-audio driver.
-
-## Behavior
-
-- Triggers from the default microphone's actual running state, regardless of which app is using it.
-- Bypasses headphones and headsets, including Sony WH-1000XM models and AirPods.
-- Ducks all other app and system audio to 20% by default.
-- Uses a 25 ms gain ramp in both directions to avoid clicks.
-- Rebuilds its private path when the default output device changes.
-- Can keep a user-selected microphone as the system default whenever that
-  device is available. If it disconnects, macOS chooses the fallback normally;
-  Ducker restores the preference when it returns.
-- Never changes the saved master volume and never records or saves audio.
-- Fails open: the original stream stays unmuted until the tap proves it is receiving nonzero samples; if permission or routing fails, playback is left untouched.
-- Excludes Ducker's own Core Audio process from the global tap so the attenuated replacement stream is played instead of being muted recursively.
+Ducker is a macOS menu-bar utility that lowers other audio while the default
+microphone is in use and brings it back up when the microphone stops — made for voice
+dictation and voice agents, where the mic flips on and off all day. It ducks
+through a Core Audio process tap rather than the volume control, so it works on
+fixed-volume outputs (HDMI, DisplayPort, most audio interfaces) and needs no
+virtual audio driver.
 
 ## Install
-
-Run:
 
 ```sh
 ./scripts/install.sh
 ```
 
-The installer builds an ad-hoc-signed app for the current Mac, places it in `~/Applications`, and creates a per-user launch agent so it starts at login. On first launch, choose **Enable & Test** and allow **System Audio Recording** when macOS asks. Core Audio requires that permission for process taps; the utility does not save audio.
+The script builds an ad-hoc-signed app for this Mac, installs it to
+`~/Applications`, and registers a launch agent so it starts at login. It needs
+macOS 14.2 or newer and the Xcode command-line tools.
 
-Use the menu-bar icon to enable/disable ducking, choose 10/20/35/50%, select a
-preferred microphone, or run a three-second test. Microphone preference is
-opt-in: choose **Follow macOS** to leave input selection entirely unchanged.
-The preference controls the system default; apps configured to use a specific
-microphone directly continue to honor their own setting.
+On first launch Ducker introduces itself and offers **Enable & Test**. Choosing it
+runs a three-second test, which is what triggers the macOS prompt for **System
+Audio Recording** permission — see
+[Permissions and privacy](#permissions-and-privacy) for why that's required, and
+what Ducker does with it. Until you grant it, playback is left exactly as it is.
+You can run the same test from the menu at any time.
 
-## Verify
+## Using Ducker
 
-The test suite validates the realtime gain/ramp code and output policy, then builds, signs, and checks the private audio pipeline without starting it:
+Everything lives in the menu-bar icon.
+
+| Menu item | What it does |
+| --- | --- |
+| **Enabled** | Turns ducking on and off. Off means Ducker touches nothing. |
+| **Duck other audio to** | 10%, 20%, 35% or 50%. Defaults to 20%. |
+| **Preferred microphone** | Pins a microphone as the system default whenever it's plugged in. Defaults to **Follow macOS**. |
+| **Run 3-second test** | Forces ducking for three seconds so you can hear the effect and trigger the permission prompt. |
+| **Open Privacy & Security…** | Jumps straight to the permission pane. |
+
+The first line of the menu is a status line. It's worth knowing what it says:
+
+| Status | Meaning |
+| --- | --- |
+| `Ready — <device>` | Armed and idle. The tap isn't open; nothing is playing, or your mic isn't live. |
+| `Listening safely — <device>` | Your mic is live and the tap is open, but your audio is still playing untouched while Ducker confirms the tap actually works. |
+| `Ducking — <device>` | The attenuated audio is what you're hearing. |
+| `Bypassed — <device> (reason)` | The output is headphones or a headset, so ducking would serve no purpose. Not an error. |
+| `Needs attention — <message>` | Something failed. Your original audio was left alone. |
+
+### Bypass
+
+The main reason to duck is to keep the room's speakers out of the room's
+microphone. On headphones that can't happen, so Ducker stays out of the way. It bypasses an
+output when the device reports a headphone terminal, when it's a Bluetooth device
+that also exposes a microphone, or when its name matches a known headset — AirPods
+and Sony WH-1000XM/WF-1000XM models.
+
+### Preferred microphone
+
+By default Ducker leaves input selection entirely alone. If you pick a specific
+microphone, it will restore that device as the system default whenever it's
+available; if you unplug it, macOS falls back normally and Ducker reinstates your
+choice when it returns. This only sets the *system* default — apps configured to
+use a particular microphone directly keep using it.
+
+## Permissions and privacy
+
+Core Audio requires the **System Audio Recording** permission for process taps.
+There is no narrower permission that grants the ability to attenuate audio without
+also granting the ability to read it.
+
+Ducker reads those samples in the realtime callback, multiplies them by a gain
+value, and writes them straight back out. Nothing is buffered, written to disk, or
+sent anywhere. The log at `~/Library/Logs/Ducker/Ducker.log` records device names
+and state changes, never audio.
+
+It also never writes your master volume, so nothing has to be restored if the app
+crashes or you kill it mid-duck.
+
+## How it works
+
+The trigger is the default microphone's device-level running state, so it fires
+no matter which app opened the microphone. To duck, Ducker builds a private
+aggregate device that wraps your current default output
+together with a system-audio tap. The tap is *exclusive* and lists Ducker's own
+process, which means it captures every process except Ducker — otherwise the
+attenuated copy it plays would be captured and attenuated again, recursively.
+
+```mermaid
+flowchart LR
+    apps["Other apps<br/>music, video, alerts"]
+    tap["System-audio tap<br/>every process except Ducker"]
+    gain["Gain stage<br/>25 ms ramp"]
+    out["Default output device"]
+
+    apps -.->|muted only once the copy is proven| out
+    apps --> tap --> gain --> out
+```
+
+The gain stage ramps over 25 ms in both directions rather than stepping, which is
+what keeps the transition from clicking.
+
+### Failing open
+
+Muting your real audio before knowing the replacement works would mean silence on
+every failure. So Ducker inverts the order:
+
+1. Your mic goes live. The tap opens with muting **off** — your audio is still
+   playing the normal way, and Ducker is only listening. This is the
+   `Listening safely` state.
+2. Ducker polls the tap until it has seen nonzero samples arrive. That's proof the
+   path carries real audio, not just that the API calls returned successfully.
+3. Only then does it enable its attenuated copy and mute the original, in the same
+   step.
+
+If the tap never delivers samples — permission denied, an output that can't be
+tapped, a routing change mid-flight — nothing is ever muted and you keep hearing
+your audio at full volume. The same holds if ducking fails to engage at step 3:
+the copy is dropped and the original is left playing.
+
+Ducker also defers opening the tap until something is actually playing, since
+opening it starts an audio device and holds the hardware awake. When the default
+output device changes, it tears the private path down and rebuilds it against the
+new device.
+
+## Build and test
 
 ```sh
 ./scripts/test.sh
 ```
 
-Logs are written to `~/Library/Logs/Ducker/Ducker.log`.
+This compiles and runs the C unit tests for the realtime gain and ramp code,
+builds and signs the app, then exercises the output/input policy decisions and the
+private audio pipeline without starting playback. `./scripts/build.sh` builds
+alone, leaving the app in `build/Ducker.app`.
 
-## Remove
-
-Run:
+## Uninstall
 
 ```sh
 ./scripts/uninstall.sh
 ```
 
-It stops the launch agent and moves the app and launch-agent plist to the Trash so the removal is recoverable. macOS may retain the System Audio Recording permission entry; it can be removed manually in Privacy & Security.
+Stops the launch agent and moves the app and its plist to the Trash, so it's
+recoverable. macOS keeps the System Audio Recording entry; remove it yourself in
+**Privacy & Security** if you want it gone.
 
 ## Requirements
 
-- macOS 14.2 or newer (tested here against macOS 27.0)
-- Xcode command-line build tools
+- macOS 14.2 or newer, Apple silicon or Intel. Developed against macOS 27.
+- Xcode command-line tools.
+
+## License
+
+[MIT](LICENSE).
