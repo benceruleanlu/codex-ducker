@@ -1,7 +1,7 @@
 # Ducker
 
 Ducker is a macOS menu-bar utility that lowers other audio while the default
-microphone is in use and restores it when the microphone stops — made for voice
+microphone is in use and brings it back up when the microphone stops — made for voice
 dictation and voice agents, where the mic flips on and off all day. It ducks
 through a Core Audio process tap rather than the volume control, so it works on
 fixed-volume outputs (HDMI, DisplayPort, most audio interfaces) and needs no
