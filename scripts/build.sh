@@ -47,6 +47,7 @@ xcrun swiftc \
     "${project_dir}/Sources/CoreAudioSupport.swift" \
     "${project_dir}/Sources/Logger.swift" \
     "${project_dir}/Sources/OutputPolicy.swift" \
+    "${project_dir}/Sources/PreferredInputPolicy.swift" \
     "${project_dir}/Sources/DuckingEngine.swift" \
     "${project_dir}/Sources/AppDelegate.swift" \
     "${project_dir}/Sources/main.swift" \

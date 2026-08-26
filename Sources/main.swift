@@ -9,7 +9,8 @@ let arguments = Set(CommandLine.arguments.dropFirst())
 if arguments.contains("--policy-check") {
     do {
         try runOutputPolicySelfTest()
-        print("Output policy tests passed")
+        try runPreferredInputPolicySelfTest()
+        print("Audio policy tests passed")
         exit(0)
     } catch {
         fputs("\(error)\n", stderr)

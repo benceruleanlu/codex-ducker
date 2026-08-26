@@ -8,6 +8,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var enabledMenuItem: NSMenuItem!
     private var gainMenuItems = [NSMenuItem]()
     private var engine: DuckingEngine!
+    private var inputPolicy: PreferredInputPolicy!
+    private var preferredInputItem: NSMenuItem!
+    private let preferredInputMenu = NSMenu()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -22,6 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         engine.onStateChange = { [weak self] state in
             self?.updateUI(state)
+        }
+        inputPolicy = PreferredInputPolicy(defaults: defaults)
+        inputPolicy.onChange = { [weak self] in
+            self?.rebuildPreferredInputMenu()
         }
 
         buildMenu()
@@ -71,6 +78,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         gainItem.submenu = gainMenu
         menu.addItem(gainItem)
 
+        preferredInputItem = NSMenuItem(
+            title: "Preferred microphone",
+            action: nil,
+            keyEquivalent: ""
+        )
+        preferredInputItem.submenu = preferredInputMenu
+        menu.addItem(preferredInputItem)
+        rebuildPreferredInputMenu()
+
         let testItem = NSMenuItem(
             title: "Run 3-second test",
             action: #selector(runTest),
@@ -95,6 +111,59 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         menu.addItem(quitItem)
         statusItem.menu = menu
+    }
+
+    private func rebuildPreferredInputMenu() {
+        guard preferredInputItem != nil, inputPolicy != nil else { return }
+        preferredInputMenu.removeAllItems()
+
+        let followsMacOS = NSMenuItem(
+            title: "Follow macOS",
+            action: #selector(followMacOSInput),
+            keyEquivalent: ""
+        )
+        followsMacOS.target = self
+        followsMacOS.state = inputPolicy.preferredUID == nil ? .on : .off
+        preferredInputMenu.addItem(followsMacOS)
+
+        if !inputPolicy.devices.isEmpty {
+            preferredInputMenu.addItem(.separator())
+        }
+
+        let connectedUIDs = Set(inputPolicy.devices.map(\.uid))
+        if let preferredUID = inputPolicy.preferredUID,
+           !connectedUIDs.contains(preferredUID) {
+            let unavailableName = inputPolicy.preferredName ?? "Preferred microphone"
+            let unavailable = NSMenuItem(
+                title: "\(unavailableName) (Unavailable)",
+                action: nil,
+                keyEquivalent: ""
+            )
+            unavailable.state = .on
+            unavailable.isEnabled = false
+            preferredInputMenu.addItem(unavailable)
+        }
+
+        for device in inputPolicy.devices {
+            let item = NSMenuItem(
+                title: inputPolicy.displayName(for: device),
+                action: #selector(selectPreferredInput(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.representedObject = device.uid
+            item.state = device.uid == inputPolicy.preferredUID ? .on : .off
+            preferredInputMenu.addItem(item)
+        }
+
+        if let preferredName = inputPolicy.preferredName {
+            let availability = connectedUIDs.contains(inputPolicy.preferredUID ?? "")
+                ? ""
+                : " (Unavailable)"
+            preferredInputItem.title = "Preferred microphone: \(preferredName)\(availability)"
+        } else {
+            preferredInputItem.title = "Preferred microphone: Follow macOS"
+        }
     }
 
     private func updateUI(_ state: DuckerState) {
@@ -156,6 +225,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         engine.runTest(duration: 3.0)
     }
 
+    @objc private func followMacOSInput() {
+        inputPolicy.selectPreferredInput(nil)
+    }
+
+    @objc private func selectPreferredInput(_ sender: NSMenuItem) {
+        guard let uid = sender.representedObject as? String,
+              let device = inputPolicy.devices.first(where: { $0.uid == uid }) else {
+            return
+        }
+        inputPolicy.selectPreferredInput(device)
+    }
+
     @objc private func openPrivacySettings() {
         guard let url = URL(string: "x-apple.systempreferences:com.apple.settings.PrivacySecurity.extension") else {
             return
@@ -164,6 +245,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        inputPolicy.shutdown()
         engine.shutdown()
     }
 }

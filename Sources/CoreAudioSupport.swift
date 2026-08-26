@@ -107,6 +107,27 @@ func defaultOutputDevice() throws -> AudioObjectID {
     ))
 }
 
+func defaultInputDevice() throws -> AudioObjectID {
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    return AudioObjectID(try readUInt32(
+        objectID: system,
+        selector: kAudioHardwarePropertyDefaultInputDevice
+    ))
+}
+
+func setDefaultInputDevice(_ deviceID: AudioObjectID) throws {
+    let system = AudioObjectID(kAudioObjectSystemObject)
+    var address = propertyAddress(kAudioHardwarePropertyDefaultInputDevice)
+    var mutableDeviceID = deviceID
+    let size = UInt32(MemoryLayout<AudioObjectID>.size)
+    let status = AudioObjectSetPropertyData(
+        system, &address, 0, nil, size, &mutableDeviceID
+    )
+    guard status == noErr else {
+        throw CoreAudioError(operation: "Set default input device", status: status)
+    }
+}
+
 func audioProcessObject(for processID: pid_t) throws -> AudioObjectID {
     let system = AudioObjectID(kAudioObjectSystemObject)
     var address = propertyAddress(kAudioHardwarePropertyTranslatePIDToProcessObject)
