@@ -1,22 +1,22 @@
 # Ducker
 
-*Turns your music down when your microphone goes live, and back up when it doesn't.*
+*Turns your music down while your microphone is live, and back up when it stops.*
 
-You start dictating to your agents and the music keeps playing. Some of it gets
-into the microphone — cardioid or dynamic, it still spills, and leaning on noise
-suppression to scrub it back out is a poor trade. The rest is just distracting to
-talk over. Reaching for the volume key solves it once; it doesn't solve it forty
-times an hour.
+Ducker is a macOS menu-bar utility that lowers other audio while the default
+microphone is in use. It exists for voice dictation and voice agents, which flip
+the microphone on and off all day — for a call you'd pause the music, but not
+line by line. Any microphone near speakers picks the music up, and it's
+distracting to talk over. macOS ducks for phone calls and Siri, and for nothing
+else.
 
-macOS won't do it for you. It ducks for phone calls and Siri, and leaves every
-other app to fend for itself.
+It ducks through a private Core Audio process tap rather than the volume control,
+so it works on outputs with no volume to change — HDMI and DisplayPort monitors,
+most audio interfaces — with no virtual audio driver and no kernel extension.
+Your saved volume level is never touched.
 
-Ducker is a menu-bar utility that watches the default microphone's actual running
-state and attenuates everything else while it's live. It does this with a private
-Core Audio process tap rather than by turning down the volume, so it works on
-outputs that have no adjustable volume at all — HDMI and DisplayPort monitors,
-most audio interfaces — and it needs no virtual audio driver, no kernel extension,
-and no changes to your saved volume level.
+The whole thing is nine source files, two thousand lines, system frameworks only;
+installed, it's one menu-bar process and one launch agent. If you decide against
+it, `./scripts/uninstall.sh` moves everything it installed to the Trash.
 
 ## Install
 
@@ -89,7 +89,9 @@ crashes or you kill it mid-duck.
 
 ## How it works
 
-Ducker builds a private aggregate device that wraps your current default output
+The trigger is the default microphone's device-level running state, so it fires
+no matter which app opened the microphone. To duck, Ducker builds a private
+aggregate device that wraps your current default output
 together with a system-audio tap. The tap is *exclusive* and lists Ducker's own
 process, which means it captures every process except Ducker — otherwise the
 attenuated copy it plays would be captured and attenuated again, recursively.
