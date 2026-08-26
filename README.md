@@ -1,22 +1,11 @@
 # Ducker
 
-*Turns your music down while your microphone is live, and back up when it stops.*
-
 Ducker is a macOS menu-bar utility that lowers other audio while the default
-microphone is in use. It exists for voice dictation and voice agents, which flip
-the microphone on and off all day — for a call you'd pause the music, but not
-line by line. Any microphone near speakers picks the music up, and it's
-distracting to talk over. macOS ducks for phone calls and Siri, and for nothing
-else.
-
-It ducks through a private Core Audio process tap rather than the volume control,
-so it works on outputs with no volume to change — HDMI and DisplayPort monitors,
-most audio interfaces — with no virtual audio driver and no kernel extension.
-Your saved volume level is never touched.
-
-The whole thing is nine source files, two thousand lines, system frameworks only;
-installed, it's one menu-bar process and one launch agent. If you decide against
-it, `./scripts/uninstall.sh` moves everything it installed to the Trash.
+microphone is in use and restores it when the microphone stops — made for voice
+dictation and voice agents, where the mic flips on and off all day. It ducks
+through a Core Audio process tap rather than the volume control, so it works on
+fixed-volume outputs (HDMI, DisplayPort, most audio interfaces) and needs no
+virtual audio driver.
 
 ## Install
 
