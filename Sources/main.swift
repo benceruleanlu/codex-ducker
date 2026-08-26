@@ -10,6 +10,7 @@ if arguments.contains("--policy-check") {
     do {
         try runOutputPolicySelfTest()
         try runPreferredInputPolicySelfTest()
+        try runAudioPathGateSelfTest()
         print("Audio policy tests passed")
         exit(0)
     } catch {

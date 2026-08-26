@@ -56,6 +56,36 @@ func outputDeviceFacts(deviceID: AudioObjectID, name: String) throws -> OutputDe
     )
 }
 
+// Opening the tap costs an audio-device start and holds the hardware awake, so
+// it is only worth doing when something is actually playing. Deferring is safe
+// only while a playback observer exists to start us when playback begins.
+func shouldOpenAudioPath(observingPlayback: Bool, outputIsPlaying: Bool) -> Bool {
+    guard observingPlayback else { return true }
+    return outputIsPlaying
+}
+
+func runAudioPathGateSelfTest() throws {
+    let cases: [(observing: Bool, playing: Bool, shouldOpen: Bool)] = [
+        (observing: true, playing: true, shouldOpen: true),
+        (observing: true, playing: false, shouldOpen: false),
+        (observing: false, playing: false, shouldOpen: true),
+        (observing: false, playing: true, shouldOpen: true),
+    ]
+
+    for testCase in cases {
+        let actual = shouldOpenAudioPath(
+            observingPlayback: testCase.observing,
+            outputIsPlaying: testCase.playing
+        )
+        guard actual == testCase.shouldOpen else {
+            throw DuckingError.unavailable(
+                "Audio-path gate failed for observing=\(testCase.observing), "
+                + "playing=\(testCase.playing)"
+            )
+        }
+    }
+}
+
 func runOutputPolicySelfTest() throws {
     let cases: [(facts: OutputDeviceFacts, shouldBypass: Bool)] = [
         (OutputDeviceFacts(

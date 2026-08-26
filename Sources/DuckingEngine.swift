@@ -75,8 +75,10 @@ final class DuckingEngine {
     private var inputAddress = propertyAddress(kAudioHardwarePropertyDefaultInputDevice)
     private var outputAddress = propertyAddress(kAudioHardwarePropertyDefaultOutputDevice)
     private var inputRunningAddress = propertyAddress(kAudioDevicePropertyDeviceIsRunningSomewhere)
+    private var outputRunningAddress = propertyAddress(kAudioDevicePropertyDeviceIsRunningSomewhere)
     private var systemListener: AudioObjectPropertyListenerBlock?
     private var inputDeviceListener: AudioObjectPropertyListenerBlock?
+    private var outputRunningListener: AudioObjectPropertyListenerBlock?
 
     private var inputID = AudioObjectID(kAudioObjectUnknown)
     private var inputName = "Unknown microphone"
@@ -98,6 +100,7 @@ final class DuckingEngine {
     private var testWorkItem: DispatchWorkItem?
     private var warmupWorkItem: DispatchWorkItem?
     private var warmupAttempts = 0
+    private var warmupStarted = Date()
     private var forcedTestActive = false
 
     private var rampFrames: UInt32 {
@@ -390,10 +393,45 @@ final class DuckingEngine {
             throw CoreAudioError(operation: "Create realtime ducking processor", status: status)
         }
         ioProcID = newIOProcID
+        registerOutputRunningListener()
         duckerLog(
             "pipeline ready: input=\(inputName), output=\(outputName), "
             + "sampleRate=\(Int(sampleRate)), excludedSelfObject=\(excludedProcessID)"
         )
+    }
+
+    private var outputIsPlaying: Bool {
+        guard outputID != kAudioObjectUnknown else { return false }
+        return (try? readUInt32(
+            objectID: outputID,
+            selector: kAudioDevicePropertyDeviceIsRunningSomewhere
+        )) == 1
+    }
+
+    private func registerOutputRunningListener() {
+        guard monitorsDevices, outputID != kAudioObjectUnknown else { return }
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.evaluateTrigger()
+        }
+        var address = outputRunningAddress
+        let status = AudioObjectAddPropertyListenerBlock(
+            outputID, &address, DispatchQueue.main, listener
+        )
+        guard status == noErr else {
+            duckerLog("output playback listener failed: \(fourCharacterCode(status))")
+            return
+        }
+        outputRunningListener = listener
+    }
+
+    private func unregisterOutputRunningListener() {
+        if let listener = outputRunningListener, outputID != kAudioObjectUnknown {
+            var address = outputRunningAddress
+            AudioObjectRemovePropertyListenerBlock(
+                outputID, &address, DispatchQueue.main, listener
+            )
+        }
+        outputRunningListener = nil
     }
 
     private func setTapMuteBehavior(_ behavior: CATapMuteBehavior) throws {
@@ -428,6 +466,14 @@ final class DuckingEngine {
               let ioProcID,
               let dspState else { return }
 
+        guard shouldOpenAudioPath(
+            observingPlayback: outputRunningListener != nil,
+            outputIsPlaying: outputIsPlaying
+        ) else {
+            state = .ready(outputName: outputName)
+            return
+        }
+
         do {
             try setTapMuteBehavior(.unmuted)
         } catch {
@@ -447,8 +493,16 @@ final class DuckingEngine {
         ioRunning = true
         audioCopyEngaged = false
         warmupAttempts = 0
+        warmupStarted = Date()
         state = .warming(outputName: outputName)
         scheduleWarmupCheck()
+    }
+
+    private var warmupInterval: TimeInterval {
+        let elapsed = Date().timeIntervalSince(warmupStarted)
+        if elapsed < 0.5 { return 0.05 }
+        if elapsed < 3.0 { return 0.25 }
+        return 1.0
     }
 
     private func scheduleWarmupCheck() {
@@ -457,7 +511,9 @@ final class DuckingEngine {
             self?.checkWarmup()
         }
         warmupWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + warmupInterval, execute: workItem
+        )
     }
 
     private func checkWarmup() {
@@ -484,15 +540,15 @@ final class DuckingEngine {
             return
         }
 
-        if warmupAttempts == 1 || warmupAttempts % 10 == 0 {
+        if warmupAttempts == 1 {
             duckerLog(
-                "tap warmup: attempts=\(warmupAttempts), callbacks=\(snapshot.callbackCount), "
+                "tap warmup: callbacks=\(snapshot.callbackCount), "
                 + "samples=\(snapshot.inputSampleCount), nonzero=0, "
                 + "buffers=\(snapshot.inputBufferCount)/\(snapshot.outputBufferCount), "
                 + "bytes=\(snapshot.inputByteCount)/\(snapshot.outputByteCount)"
             )
         }
-        if forcedTestActive && warmupAttempts >= 20 {
+        if forcedTestActive, Date().timeIntervalSince(warmupStarted) >= 2.5 {
             forcedTestActive = false
             testWorkItem?.cancel()
             testWorkItem = nil
@@ -603,6 +659,7 @@ final class DuckingEngine {
         tapDescription = nil
         outputBypassReason = nil
         excludedProcessID = kAudioObjectUnknown
+        unregisterOutputRunningListener()
         outputID = kAudioObjectUnknown
     }
 
