@@ -3,12 +3,12 @@ set -euo pipefail
 
 project_dir="${0:A:h:h}"
 build_dir="${project_dir}/build"
-app_bundle="${build_dir}/Codex Ducker.app"
+app_bundle="${build_dir}/Ducker.app"
 contents_dir="${app_bundle}/Contents"
 macos_dir="${contents_dir}/MacOS"
 
 mkdir -p "${build_dir}" "${macos_dir}"
-find "${build_dir}" -mindepth 1 -maxdepth 1 ! -name 'Codex Ducker.app' -delete
+find "${build_dir}" -mindepth 1 -maxdepth 1 ! -name 'Ducker.app' -delete
 if [[ -d "${app_bundle}" ]]; then
     find "${app_bundle}" -mindepth 1 -delete
 fi
@@ -52,7 +52,7 @@ xcrun swiftc \
     "${project_dir}/Sources/AppDelegate.swift" \
     "${project_dir}/Sources/main.swift" \
     "${build_dir}/DuckerDSP.o" \
-    -o "${macos_dir}/CodexDucker"
+    -o "${macos_dir}/Ducker"
 
 cp "${project_dir}/Info.plist" "${contents_dir}/Info.plist"
 bundle_identifier="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "${contents_dir}/Info.plist")"

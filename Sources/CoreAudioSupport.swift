@@ -149,7 +149,7 @@ func audioProcessObject(for processID: pid_t) throws -> AudioObjectID {
     }
     guard result != kAudioObjectUnknown else {
         throw DuckingError.unavailable(
-            "Codex Ducker could not exclude its own Core Audio process"
+            "Ducker could not exclude its own Core Audio process"
         )
     }
     return result
