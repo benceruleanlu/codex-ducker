@@ -65,7 +65,7 @@ final class DuckingEngine {
         didSet {
             duckGain = min(max(duckGain, 0.0), 1.0)
             if ioRunning, let dspState {
-                DuckerDSPSetTarget(dspState, duckGain, rampFrames)
+                DuckerDSPSetTarget(dspState, duckGain, duckRampFrames)
             }
         }
     }
@@ -103,8 +103,16 @@ final class DuckingEngine {
     private var warmupStarted = Date()
     private var forcedTestActive = false
 
-    private var rampFrames: UInt32 {
+    // The two directions have different jobs. The duck must be fast so the
+    // music is already down when speech starts; 25 ms is long enough not to
+    // click. The release is aesthetics: 250 ms at a constant rate in dB (the
+    // DSP ramp is geometric) reads as the music easing back in.
+    private let releaseRampSeconds = 0.25
+    private var duckRampFrames: UInt32 {
         UInt32(max(1, sampleRate * 0.025))
+    }
+    private var releaseRampFrames: UInt32 {
+        UInt32(max(1, sampleRate * releaseRampSeconds))
     }
 
     init(enabled: Bool, duckGain: Float, monitorsDevices: Bool = true) {
@@ -456,7 +464,7 @@ final class DuckingEngine {
 
         if ioRunning {
             if let dspState {
-                DuckerDSPSetTarget(dspState, duckGain, rampFrames)
+                DuckerDSPSetTarget(dspState, duckGain, duckRampFrames)
             }
             return
         }
@@ -482,7 +490,7 @@ final class DuckingEngine {
         }
         DuckerDSPSetCopyEnabled(dspState, 0)
         DuckerDSPResetTelemetry(dspState)
-        DuckerDSPReset(dspState, 1.0, duckGain, rampFrames)
+        DuckerDSPReset(dspState, 1.0, duckGain, duckRampFrames)
         let status = AudioDeviceStart(aggregateID, ioProcID)
         guard status == noErr else {
             state = .error(
@@ -575,12 +583,16 @@ final class DuckingEngine {
             return
         }
 
-        DuckerDSPSetTarget(dspState, 1.0, rampFrames)
+        DuckerDSPSetTarget(dspState, 1.0, releaseRampFrames)
         let workItem = DispatchWorkItem { [weak self] in
             self?.performStop(preserveState: preserveState)
         }
         stopWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: workItem)
+        // The unmute-and-stop swap is only seamless once the copy is back at
+        // unity, so the teardown waits out the full release ramp.
+        DispatchQueue.main.asyncAfter(
+            deadline: .now() + releaseRampSeconds + 0.05, execute: workItem
+        )
     }
 
     private func performStop(preserveState: Bool = false) {

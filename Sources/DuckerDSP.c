@@ -27,6 +27,12 @@ struct DuckerDSPState {
     uint64_t appliedVersion;
 };
 
+// Gains at or below this floor cannot anchor a multiplicative ramp (a zero
+// start would stay zero forever; a zero target would need an infinite ratio),
+// so ramp endpoints are floored here. -60 dB, well below audibility, and the
+// end-of-ramp snap still lands on the exact requested target.
+static const float kMinRampGain = 0.001f;
+
 static float clampGain(float gain) {
     if (!isfinite(gain)) {
         return 1.0f;
@@ -245,8 +251,16 @@ void DuckerDSPProcess(DuckerDSPState *state,
         frames = inputFrames;
     }
 
+    // The ramp is geometric — a constant per-frame ratio — so the gain moves
+    // at a constant rate in dB. A linear-amplitude ramp is perceptually
+    // front-loaded: releasing 0.2 -> 1.0 covers +6 of its +14 dB in the first
+    // quarter, then crawls. The ratio is recomputed from the remaining
+    // distance each callback, so float drift self-corrects instead of
+    // accumulating across a long release.
     const float startingGain = state->currentGain;
-    float step = 0.0f;
+    float rampBaseGain = startingGain;
+    float frameRatio = 1.0f;
+    float bufferEndGain = startingGain;
     uint32_t rampedFrames = 0;
     if (state->remainingRampFrames == 0) {
         state->currentGain = state->activeTarget;
@@ -254,8 +268,13 @@ void DuckerDSPProcess(DuckerDSPState *state,
         rampedFrames = frames < state->remainingRampFrames
             ? frames
             : state->remainingRampFrames;
-        step = (state->activeTarget - startingGain) /
-            (float)state->remainingRampFrames;
+        rampBaseGain = startingGain < kMinRampGain ? kMinRampGain : startingGain;
+        const float rampTarget = state->activeTarget < kMinRampGain
+            ? kMinRampGain
+            : state->activeTarget;
+        frameRatio = powf(rampTarget / rampBaseGain,
+                          1.0f / (float)state->remainingRampFrames);
+        bufferEndGain = rampBaseGain * powf(frameRatio, (float)rampedFrames);
     }
 
     for (UInt32 index = 0; index < outputData->mNumberBuffers; ++index) {
@@ -287,20 +306,26 @@ void DuckerDSPProcess(DuckerDSPState *state,
         Float32 *samples = (Float32 *)output->mData;
         const uint32_t sampleCount = copiedBytes / (uint32_t)sizeof(Float32);
         const uint32_t channels = output->mNumberChannels;
+        float rampGain = rampBaseGain;
+        uint32_t rampFrame = UINT32_MAX;
         for (uint32_t sample = 0; sample < sampleCount; ++sample) {
             const uint32_t frame = sample / channels;
             float gain = state->activeTarget;
             if (state->remainingRampFrames > 0 && frame < rampedFrames) {
-                gain = startingGain + step * (float)(frame + 1);
+                if (frame != rampFrame) {
+                    rampGain *= frameRatio;
+                    rampFrame = frame;
+                }
+                gain = rampGain;
             } else if (state->remainingRampFrames > rampedFrames) {
-                gain = startingGain + step * (float)rampedFrames;
+                gain = bufferEndGain;
             }
             samples[sample] *= gain;
         }
     }
 
     if (state->remainingRampFrames > 0) {
-        state->currentGain = startingGain + step * (float)rampedFrames;
+        state->currentGain = bufferEndGain;
         state->remainingRampFrames -= rampedFrames;
         if (state->remainingRampFrames == 0) {
             state->currentGain = state->activeTarget;
