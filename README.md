@@ -89,15 +89,17 @@ attenuated copy it plays would be captured and attenuated again, recursively.
 flowchart LR
     apps["Other apps<br/>music, video, alerts"]
     tap["System-audio tap<br/>every process except Ducker"]
-    gain["Gain stage<br/>25 ms ramp"]
+    gain["Gain stage<br/>25 ms duck · 250 ms release"]
     out["Default output device"]
 
     apps -.->|muted only once the copy is proven| out
     apps --> tap --> gain --> out
 ```
 
-The gain stage ramps over 25 ms in both directions rather than stepping, which is
-what keeps the transition from clicking.
+The two ramp directions have different jobs. The duck takes 25 ms — fast enough
+to be done before you start speaking, long enough not to click. The release takes
+250 ms at a constant rate in dB; a linear-amplitude ramp would recover most of
+its loudness in the first few milliseconds and crawl through the rest.
 
 ### Failing open
 
